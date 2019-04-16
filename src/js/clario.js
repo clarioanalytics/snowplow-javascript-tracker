@@ -48,7 +48,9 @@
         window.snowplow('addTrans',
             window.clarioTrackerData.order_id,
             window.clarioTrackerData.order_affiliation,
-            window.clarioTrackerData.order_total
+            window.clarioTrackerData.order_total,
+            window.clarioTrackerData.order_tax || "",
+            window.clarioTrackerData.order_shipping || ""
         );
 
         if (window.clarioTrackerData.order_items) {
