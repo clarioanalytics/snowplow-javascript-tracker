@@ -45,12 +45,26 @@
     })();
 
     if (window.clarioTrackerData.order_id) {
+        var context = null;
+        if (window.clarioTrackerData.order_context) {
+            context = [{
+                schema: "iglu:io.clar/transaction/jsonschema/1-0-0",
+                data: {
+                    transaction: window.clarioTrackerData.order_context
+                }
+            }]
+        }
         window.snowplow('addTrans',
             window.clarioTrackerData.order_id,
             window.clarioTrackerData.order_affiliation,
             window.clarioTrackerData.order_total,
             window.clarioTrackerData.order_tax || "",
-            window.clarioTrackerData.order_shipping || ""
+            window.clarioTrackerData.order_shipping || "",
+            "",
+            "",
+            "",
+            "",
+            context
         );
 
         if (window.clarioTrackerData.order_items) {
