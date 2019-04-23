@@ -73,9 +73,11 @@
                     item.orderId,
                     item.sku,
                     item.name,
-                    '',
+                    "",
                     item.price,
-                    item.quantity
+                    item.quantity,
+                    "",
+                    item.context || ""
                 );
             });
         }
