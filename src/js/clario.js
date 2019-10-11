@@ -1,5 +1,5 @@
 ;(function() {
-    window.snowplow("newTracker", "cf", "c.clario.us", {
+    window.snowplow("newTracker", "cf", window.clarioTrackerData.collector || "c.clario.us", {
         appId: window.clarioTrackerData.app_id,
         platform: "web",
         discoverRootDomain: true,
@@ -44,6 +44,7 @@
         }
     })();
 
+
     if (window.clarioTrackerData.order_id) {
         var context = null;
         if (window.clarioTrackerData.order_context) {
@@ -83,5 +84,28 @@
         }
 
         window.snowplow('trackTrans');
+    };
+
+    if (window.clarioTrackerData.gumEnabled) {
+        try {
+            var gumUrl = "https://gum.criteo.com/sync?c=" + window.ClarioTrackerData.gum_id + "&r=1&a=1&u=";
+
+            var redirectUrl =
+                "https://" +
+                window.clarioTrackerData.collector +
+                "/i?aid=" +
+                window.clarioTrackerData.app_id +
+                "&e=se&p=web&tv=2.10.2&se_ca=criteo&se_ac=cookie_match&se_la=" +
+                // domainUserId
+                (""+document.cookie.split(";").find(function(cookie){return cookie.search(/_sp_id\..*=/) >= 0;})).split("=")[1].split(".")[0] +
+                "&se_pr=@USERID@";
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', gumUrl + encodeURIComponent(redirectUrl),true);
+            xhr.withCredentials = true;
+            xhr.send();
+        } catch {
+            console.log("Error sending GUM request.")
+        }
     }
 }());
