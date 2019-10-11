@@ -88,11 +88,13 @@
 
     if (window.clarioTrackerData.gum_id) {
         try {
+
+            var collector = window.clarioTrackerData.collector || "c.clario.us";
             var gumUrl = "https://gum.criteo.com/sync?c=" + window.clarioTrackerData.gum_id + "&r=1&a=1&u=";
 
             var redirectUrl =
                 "https://" +
-                window.clarioTrackerData.collector || "c.clario.us" +
+                collector +
                 "/i?aid=" +
                 window.clarioTrackerData.app_id +
                 "&e=se&p=web&tv=2.10.2&se_ca=criteo&se_ac=cookie_match&se_la=" +
