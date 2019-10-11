@@ -84,9 +84,9 @@
         }
 
         window.snowplow('trackTrans');
-    };
+    }
 
-    if (window.clarioTrackerData.gumEnabled) {
+    if (window.clarioTrackerData.gum_id) {
         try {
             var gumUrl = "https://gum.criteo.com/sync?c=" + window.ClarioTrackerData.gum_id + "&r=1&a=1&u=";
 
