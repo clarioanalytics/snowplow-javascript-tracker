@@ -136,15 +136,19 @@
         }
     };
 
-    trackIt();
-    orderUp();
-    chewGum();
+    function plowIt () {
+        trackIt();
+        orderUp();
+        chewGum();
+    }
+
+    plowIt();
 
     if (window.history) {
         window.history.pushState = function (pushFn) {
             return function pushState() {
                 var ret = pushFn.apply(this, arguments);
-                window.dispatchEvent(new Event("ClarioLocationChange"));
+                plowIt();
                 return ret
             }
         }(window.history.pushState);
@@ -152,20 +156,12 @@
         window.history.replaceState = function (replaceFn) {
             return function replaceState() {
                 var ret = replaceFn.apply(this, arguments);
-                window.dispatchEvent(new Event("ClarioLocationChange"));
+                plowIt();
                 return ret
             }
         }(window.history.replaceState);
 
         // capture forward/backward navigation
-        window.addEventListener("popstate", function () {
-            window.dispatchEvent(new Event("ClarioLocationChange"))
-        });
-
-        window.addEventListener('ClarioLocationChange', function () {
-            trackIt();
-            orderUp();
-            chewGum();
-        })
+        window.addEventListener("popstate", plowIt);
     }
 } ());
