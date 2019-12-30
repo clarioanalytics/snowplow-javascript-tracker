@@ -13,6 +13,53 @@
         }
     });
 
+    // Array.find polyfill for IE
+    if (!Array.prototype.find) {
+        Object.defineProperty(Array.prototype, 'find', {
+            value: function(predicate) {
+                // 1. Let O be ? ToObject(this value).
+                if (this == null) {
+                    throw TypeError('"this" is null or not defined');
+                }
+
+                var o = Object(this);
+
+                // 2. Let len be ? ToLength(? Get(O, "length")).
+                var len = o.length >>> 0;
+
+                // 3. If IsCallable(predicate) is false, throw a TypeError exception.
+                if (typeof predicate !== 'function') {
+                    throw TypeError('predicate must be a function');
+                }
+
+                // 4. If thisArg was supplied, let T be thisArg; else let T be undefined.
+                var thisArg = arguments[1];
+
+                // 5. Let k be 0.
+                var k = 0;
+
+                // 6. Repeat, while k < len
+                while (k < len) {
+                    // a. Let Pk be ! ToString(k).
+                    // b. Let kValue be ? Get(O, Pk).
+                    // c. Let testResult be ToBoolean(? Call(predicate, T, « kValue, k, O »)).
+                    // d. If testResult is true, return kValue.
+                    var kValue = o[k];
+                    if (predicate.call(thisArg, kValue, k, o)) {
+                        return kValue;
+                    }
+                    // e. Increase k by 1.
+                    k++;
+                }
+
+                // 7. Return undefined.
+                return undefined;
+            },
+            configurable: true,
+            writable: true
+        });
+    }
+
     var trackIt = function () {
         window.snowplow('setUserId', window.clarioTrackerData.customer_id);
 
@@ -43,7 +90,7 @@
         } else {
             window.snowplow('trackPageView');
         }
-    }
+    };
 
     var orderUp = function () {
         if (window.clarioTrackerData.order_id) {
@@ -86,7 +133,7 @@
 
             window.snowplow('trackTrans');
         }
-    }
+    };
 
     var chewGum = function () {
         if (window.clarioTrackerData.gum_id) {
@@ -102,9 +149,13 @@
                 });
 
                 if (!window.clarioTrackerData.sp_id) {
-                    window.clarioTrackerData.sp_id = document.cookie.split(";").find(function (cookie) {
+                    var found = document.cookie.split(";").find(function (cookie) {
                         return cookie.search(/_sp_id\..*=/) >= 0;
-                    }).split("=")[1].split(".")[0];
+                    });
+
+                    if (found) {
+                        window.clarioTrackerData.sp_id = found.split("=")[1].split(".")[0];
+                    }
                 }
 
                 var redirectUrl =
@@ -124,39 +175,38 @@
                 console.log("Error sending GUM request.")
             }
         }
-    }
+    };
 
-    trackIt()
-    orderUp()
-    chewGum()
+    trackIt();
+    orderUp();
+    chewGum();
 
     if (window.history) {
         window.history.pushState = function (pushFn) {
             return function pushState() {
-                var ret = pushFn.apply(this, arguments)
-                window.dispatchEvent(new Event("ClarioLocationChange"))
+                var ret = pushFn.apply(this, arguments);
+                window.dispatchEvent(new Event("ClarioLocationChange"));
                 return ret
             }
-        }(window.history.pushState)
+        }(window.history.pushState);
 
         window.history.replaceState = function (replaceFn) {
             return function replaceState() {
-                var ret = replaceFn.apply(this, arguments)
-                window.dispatchEvent(new Event("ClarioLocationChange"))
+                var ret = replaceFn.apply(this, arguments);
+                window.dispatchEvent(new Event("ClarioLocationChange"));
                 return ret
             }
-        }(window.history.replaceState)
+        }(window.history.replaceState);
 
         // capture forward/backward navigation
         window.addEventListener("popstate", function () {
             window.dispatchEvent(new Event("ClarioLocationChange"))
-        })
+        });
 
         window.addEventListener('ClarioLocationChange', function () {
-            trackIt()
-            orderUp()
-            chewGum()
+            trackIt();
+            orderUp();
+            chewGum();
         })
     }
-}
-());
+} ());
