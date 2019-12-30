@@ -3,6 +3,7 @@
         appId: window.clarioTrackerData.app_id,
         platform: "web",
         discoverRootDomain: true,
+        stateStorageStrategy: "localStorage",
         post: true,
         contexts: {
             webPage: true,
@@ -92,14 +93,23 @@
             var collector = window.clarioTrackerData.collector || "c.clario.us";
             var gumUrl = "https://gum.criteo.com/sync?c=" + window.clarioTrackerData.gum_id + "&r=1&a=1&u=";
 
+            Object.keys(localStorage).forEach(function(key){ if (key.search(/_sp_id\.\w/) >= 0)
+                {
+                    window.clarioTrackerData.sp_id = localStorage.getItem(key);
+                }
+            });
+
+            if (!window.clarioTrackerData.sp_id) {
+                window.clarioTrackerData.sp_id = document.cookie.split(";").find(function(cookie){return cookie.search(/_sp_id\..*=/) >= 0;}).split("=")[1].split(".")[0];
+            }
+
             var redirectUrl =
                 "https://" +
                 collector +
                 "/i?aid=" +
                 window.clarioTrackerData.app_id +
                 "&e=se&p=web&tv=2.10.2&se_ca=criteo&se_ac=cookie_match&se_la=" +
-                // domainUserId
-                (""+document.cookie.split(";").find(function(cookie){return cookie.search(/_sp_id\..*=/) >= 0;})).split("=")[1].split(".")[0] +
+                window.clarioTrackerData.sp_id || "" +
                 "&se_pr=@USERID@";
 
             var xhr = new XMLHttpRequest();
