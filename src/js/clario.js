@@ -143,25 +143,4 @@
     }
 
     plowIt();
-
-    if (window.history) {
-        window.history.pushState = function (pushFn) {
-            return function pushState() {
-                var ret = pushFn.apply(this, arguments);
-                plowIt();
-                return ret
-            }
-        }(window.history.pushState);
-
-        window.history.replaceState = function (replaceFn) {
-            return function replaceState() {
-                var ret = replaceFn.apply(this, arguments);
-                plowIt();
-                return ret
-            }
-        }(window.history.replaceState);
-
-        // capture forward/backward navigation
-        window.addEventListener("popstate", plowIt);
-    }
 } ());
