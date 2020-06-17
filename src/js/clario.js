@@ -20,7 +20,8 @@
 
     window.snowplow('setUserId', window.clarioTrackerData.customer_id);
 
-    var hits = [];
+    var contexts = [];
+    var cookies = [];
     var allTheCookies = document.cookie.split(";");
     ["_fbp", "_ga"].forEach(function (term) {
         var found = find(allTheCookies, function (cookie) {
@@ -29,7 +30,7 @@
         if (found) {
             var parts = found.split("=");
             if (parts.length == 2) {
-                hits.push({
+                cookies.push({
                     name: term,
                     value: parts[1]
                 });
@@ -37,13 +38,26 @@
         }
     });
 
-    if (hits.length) {
-        window.snowplow('trackPageView', null, [{
+    if (cookies.length) {
+        contexts.push({
             schema: "iglu:io.clar/cookies/jsonschema/2-0-0",
             data: {
-                cookies: hits
+                cookies: cookies
             }
-        }]);
+        });
+    }
+
+    if (window.clarioTrackerData.page_meta && window.clarioTrackerData.page_meta.length) {
+        contexts.push({
+            schema: "iglu:io.clar/page_meta/jsonschema/1-0-0",
+            data: {
+                page_meta: window.clarioTrackerData.page_meta
+            }
+        });
+    }
+
+    if (contexts.length) {
+        window.snowplow('trackPageView', null, contexts);
     } else {
         window.snowplow('trackPageView');
     }
