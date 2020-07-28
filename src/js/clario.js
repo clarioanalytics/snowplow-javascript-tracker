@@ -132,7 +132,7 @@
                 "/i?aid=" +
                 window.clarioTrackerData.app_id +
                 "&e=se&p=web&tv=2.10.2&se_ca=criteo&se_ac=cookie_match&se_la=" +
-                window.clarioTrackerData.sp_id || "" +
+                (window.clarioTrackerData.sp_id || "") +
                 "&se_pr=@USERID@";
 
             var xhr = new XMLHttpRequest();
