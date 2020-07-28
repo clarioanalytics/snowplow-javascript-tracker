@@ -109,21 +109,20 @@
             var collector = window.clarioTrackerData.collector || "c.clario.us";
             var gumUrl = "https://gum.criteo.com/sync?c=" + window.clarioTrackerData.gum_id + "&r=1&a=1&u=";
 
-            Object.keys(localStorage).forEach(function (key) {
-                if (key.search(/_sp_id\.\w/) >= 0) {
-                    window.clarioTrackerData.sp_id = localStorage.getItem(key);
-                }
+            var found = find(document.cookie.split(";"), function (cookie) {
+                return cookie.search(/sp=/) >= 0;
             });
 
-            if (!window.clarioTrackerData.sp_id) {
-                var cookieAry = document.cookie.split(";");
-                var found = find(cookieAry, function (cookie) {
-                    return cookie.search(/_sp_id\..*=/) >= 0;
-                });
+            if (found) {
+                window.clarioTrackerData.sp_id = found.split("=")[1].split(".")[0];
+            }
 
-                if (found) {
-                    window.clarioTrackerData.sp_id = found.split("=")[1].split(".")[0];
-                }
+            if (!window.clarioTrackerData.sp_id) {
+                Object.keys(localStorage).forEach(function (key) {
+                    if (key.search(/_sp_id\.\w*$/) >= 0) {
+                        window.clarioTrackerData.sp_id = localStorage.getItem(key).split(".")[0];
+                    }
+                });
             }
 
             var redirectUrl =
