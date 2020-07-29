@@ -109,6 +109,7 @@
             var collector = window.clarioTrackerData.collector || "c.clario.us";
             var gumUrl = "https://gum.criteo.com/sync?c=" + window.clarioTrackerData.gum_id + "&r=1&a=1&u=";
 
+            // First check our newly minted 1P collector cookie (appears in network_userid)
             var found = find(document.cookie.split(";"), function (cookie) {
                 return cookie.search(/sp=/) >= 0;
             });
@@ -117,6 +118,7 @@
                 window.clarioTrackerData.sp_id = found.split("=")[1].split(".")[0];
             }
 
+            // If 1P collector cookie is missing, fall back to the 1P ID in local storage (appears in domain_userid)
             if (!window.clarioTrackerData.sp_id) {
                 Object.keys(localStorage).forEach(function (key) {
                     if (key.search(/_sp_id\.\w*$/) >= 0) {
