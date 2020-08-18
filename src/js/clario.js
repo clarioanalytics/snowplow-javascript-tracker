@@ -56,6 +56,7 @@
         });
     }
 
+    window.snowplow('enableActivityTracking', 10, 10);
     if (contexts.length) {
         window.snowplow('trackPageView', null, contexts);
     } else {
