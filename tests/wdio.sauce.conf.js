@@ -1,5 +1,7 @@
 const { config } = require('./wdio.default.conf')
 
+const buildName = `snowplow-js-tracker-${process.env.GITHUB_WORKFLOW}/${process.env.GITHUB_RUN_NUMBER}-${process.env.GITHUB_REF}-${process.env.GITHUB_SHA}`
+
 exports.config = {
   ...config,
 
@@ -10,75 +12,113 @@ exports.config = {
   capabilities: [
     {
       browserName: 'firefox',
-      platform: 'Windows 10',
+      platformName: 'Windows 10',
+      browserVersion: 'latest',
+      'sauce:options': {
+        'build': buildName,
+      },
     },
     {
       browserName: 'firefox',
-      platform: 'macOS 10.14',
+      platformName: 'macOS 10.15',
+      browserVersion: 'latest',
+      'sauce:options': {
+        'build': buildName,
+      },
     },
     {
       browserName: 'chrome',
-      platform: 'Windows 10',
+      platformName: 'Windows 10',
+      browserVersion: 'latest',
+      'sauce:options': {
+        'build': buildName,
+      },
     },
     {
       browserName: 'chrome',
-      platform: 'macOS 10.14',
+      platformName: 'macOS 10.15',
+      browserVersion: 'latest',
+      'sauce:options': {
+        'build': buildName,
+      },
     },
     {
       browserName: 'MicrosoftEdge',
-      platform: 'Windows 10',
+      platformName: 'Windows 10',
+      browserVersion: 'latest',
+      'sauce:options': {
+        'build': buildName,
+      },
+    },
+    {
+      browserName: 'MicrosoftEdge',
+      platformName: 'Windows 10',
+      browserVersion: '13',
+      'sauce:options': {
+        'build': buildName,
+      },
     },
     {
       browserName: 'internet explorer',
-      platform: 'Windows 8.1',
-      version: '11',
+      platformName: 'Windows 8.1',
+      browserVersion: '11',
+      'sauce:options': {
+        'build': buildName,
+      },
     },
     {
       browserName: 'internet explorer',
-      platform: 'Windows 8',
-      version: '10',
+      platformName: 'Windows 8',
+      browserVersion: '10',
+      'sauce:options': {
+        'build': buildName,
+      },
+    },
+    {
+      browserName: 'safari',
+      browserVersion: 'latest',
+      platformName: 'macOS 10.15',
+      'sauce:options': { 
+        seleniumVersion: '3.14.0',
+        'build': buildName,
+      },
+    },
+    {
+      browserName: 'safari',
+      browserVersion: '12.1',
+      platformName: 'macOS 10.13',
+      'sauce:options': { 
+        seleniumVersion: '3.14.0',
+        'build': buildName,
+      },
+    },
+    // Legacy Sauce Labs 
+    {
+      browserName: 'safari',
+      platform: 'OS X 10.10',
+      version: '8.0',
+      build: buildName,
     },
     {
       browserName: 'internet explorer',
       platform: 'Windows 7',
       version: '9',
-    },
-    /* note the change from platform to platformName
-     * that goes with the selenium version switch
-     */
-    {
-      browserName: 'safari',
-      browserVersion: 'latest',
-      platformName: 'macOS 10.14',
-      'sauce:options': { seleniumVersion: '3.14.0' },
+      build: buildName,
     },
     {
-      browserName: 'safari',
-      browserVersion: '13.0',
-      platformName: 'macOS 10.13',
-      'sauce:options': { seleniumVersion: '3.14.0' },
+      browserName: 'firefox',
+      platform: 'Windows 10',
+      version: '53.0',
+      build: buildName,
     },
     {
-      browserName: 'safari',
-      browserVersion: '11.0',
-      platformName: 'macOS 10.12',
-      'sauce:options': { seleniumVersion: '3.14.0' },
-    },
-    {
-      browserName: 'safari',
-      platformName: 'macOS 10.12',
-      browserVersion: '10.1',
-      'sauce:options': { seleniumVersion: '3.14.0' },
-    },
-    // and back to platform again
-    {
-      browserName: 'safari',
-      platform: 'OS X 10.10',
-      browserVersion: '8.0',
+      browserName: 'chrome',
+      platform: 'Windows 10',
+      version: '60.0',
+      build: buildName,
     },
   ],
   services: ['static-server', 'sauce'],
-
   sauceConnect: true,
   sauceConnectOpts: {},
 }

@@ -2,7 +2,7 @@
  * JavaScript tracker for Snowplow: tests/scripts/detectors.js
  * 
  * Significant portions copyright 2010 Anthon Pang. Remainder copyright 
- * 2012-2014 Snowplow Analytics Ltd. All rights reserved. 
+ * 2012-2020 Snowplow Analytics Ltd. All rights reserved. 
  * 
  * Redistribution and use in source and binary forms, with or without 
  * modification, are permitted provided that the following conditions are 
@@ -40,5 +40,4 @@ document.getElementById('localStorageAccessible').innerHTML = detectors.localSto
 document.getElementById('hasSessionStorage').innerHTML = detectors.hasSessionStorage();
 document.getElementById('hasCookies').innerHTML = detectors.hasCookies();
 document.getElementById('detectTimezone').innerHTML = detectors.detectTimezone();
-document.getElementById('detectSignature').innerHTML = detectors.detectSignature();
 document.getElementById('detectBrowserFeatures').innerHTML = JSON.stringify(detectors.detectBrowserFeatures(), undefined, 2);

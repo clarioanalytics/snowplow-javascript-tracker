@@ -32,7 +32,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import InQueue from '../../src/js/in_queue'
+import { InQueueManager } from '../../src/js/in_queue'
 
 describe('InQueueManager', () => {
   let output = 0
@@ -71,7 +71,7 @@ describe('InQueueManager', () => {
     ['increaseAttribute', 5],
     ['setOutputToAttribute'],
   ]
-  const asyncQueue = new InQueue.InQueueManager(
+  const asyncQueue = new InQueueManager(
     mockTrackerConstructor,
     0,
     {},
@@ -110,5 +110,15 @@ describe('InQueueManager', () => {
       },
     ])
     expect(callbackExecuted).toBe(true)
+  })
+
+  it('Executing a custom callback that errors should not throw', () => {
+    expect(() => {
+      asyncQueue.push([
+        function() {
+          throw 'caught error'
+        },
+      ])
+    }).not.toThrow()
   })
 })

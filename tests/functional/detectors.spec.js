@@ -2,7 +2,7 @@
  * JavaScript tracker for Snowplow: tests/functional/detectors.spec.js
  *
  * Significant portions copyright 2010 Anthon Pang. Remainder copyright
- * 2012-2014 Snowplow Analytics Ltd. All rights reserved.
+ * 2012-2020 Snowplow Analytics Ltd. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -40,10 +40,6 @@ describe('Detectors test', () => {
     $('body.loaded').waitForExist()
   })
 
-  it('Returns a value for user fingerprint', () => {
-    expect($('#detectSignature').getText()).toBeTruthy()
-  })
-
   it('Returns a value for document dimensions', () => {
     const value = $('#detectDocumentDimensions').getText()
     const [reportedWidth, reportedHeight] = value.split('x')
@@ -78,8 +74,16 @@ describe('Detectors test', () => {
 
   it('Browser features', () => {
     const value = $('#detectBrowserFeatures').getText()
-    const { cd } = JSON.parse(value)
-    // The only feature which is the same for all tested browsers
-    expect(cd).toBe(24)
+    const browserFeatures = JSON.parse(value)
+
+    const isMatchWithCallback = F.isMatchWith((lt, rt) =>
+      F.isFunction(rt) ? rt(lt) : undefined
+    )
+
+    // The only features which are guarenteed to be returned
+    expect(isMatchWithCallback({
+      res: F.isString,
+      cd: F.isNumber
+    }, browserFeatures)).toBe(true)
   })
 })

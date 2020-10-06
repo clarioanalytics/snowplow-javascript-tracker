@@ -2,7 +2,7 @@
  * JavaScript tracker for Snowplow: tests/functional/integration.spec.js
  *
  * Significant portions copyright 2010 Anthon Pang. Remainder copyright
- * 2012-2016 Snowplow Analytics Ltd. All rights reserved.
+ * 2012-2020 Snowplow Analytics Ltd. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -33,63 +33,37 @@
  */
 import util from 'util'
 import F from 'lodash/fp'
-import { reset, fetchResults, start, stop } from '../micro'
+import { fetchResults, start, stop } from '../micro'
 
 const dumpLog = log => console.log(util.inspect(log, true, null, true))
 
-const isMatchWithCB = F.isMatchWith((lt, rt) =>
-  F.isFunction(rt) ? rt(lt) : undefined
-)
-
 describe('Test that request_recorder logs meet expectations', () => {
-  if (
-    F.isMatch(
-      { version: '12603.3.8', browserName: 'safari' },
-      browser.capabilities
-    )
-  ) {
-    // the safari driver sauce uses for safari 10 doesnt support
-    // setting cookies, so this whole suite fails
-    // https://github.com/webdriverio/webdriverio/issues/2004
-    fit('skipping in safari 10', () => {})
-    return
-  }
-
   let log = []
-  let container
-  let containerUrl
+  let docker
 
-  const logContains = ev => F.some(isMatchWithCB(ev), log)
+  const logContains = ev => F.some(F.isMatch(ev), log)
 
   beforeAll(() => {
     browser.call(() => {
       return start()
-        .then(e => {
-          container = e
-          return container.inspect()
-        })
-        .then(info => {
-          containerUrl =
-            'snowplow-js-tracker.local:' +
-            F.get('NetworkSettings.Ports["9090/tcp"][0].HostPort', info)
+        .then((container) => {
+          docker = container
         })
     })
     browser.url('/index.html')
-    browser.setCookies({ name: 'container', value: containerUrl })
+    browser.setCookies({ name: 'container', value: docker.url })
     browser.url('/session-integration.html')
-    browser.pause(15000) // Time for requests to get written
+    browser.pause(10000) // Time for requests to get written
     browser.call(() =>
-      fetchResults(containerUrl).then(r => {
-        log = r
-        return Promise.resolve()
+      fetchResults(docker.url).then(result => {
+        log = result
       })
     )
   })
-
+  
   afterAll(() => {
-    log = []
     browser.call(() => {
-      return stop(container)
+      return stop(docker.container)
     })
   })
 
@@ -97,12 +71,10 @@ describe('Test that request_recorder logs meet expectations', () => {
     expect(
       logContains({
         event: {
-          parameters: {
-            e: 'pv',
-            tna: 'cookieSessionTracker',
-            vid: '2',
-          },
-        },
+            event: 'page_view',
+            name_tracker: 'cookieSessionTracker',
+            domain_sessionidx: 2,
+          }
       })
     ).toBe(true)
   })
@@ -111,28 +83,46 @@ describe('Test that request_recorder logs meet expectations', () => {
     expect(
       logContains({
         event: {
-          parameters: {
-            e: 'pv',
-            tna: 'localStorageSessionTracker',
-            vid: '2',
-          },
-        },
+            event: 'page_view',
+            name_tracker: 'localStorageSessionTracker',
+            domain_sessionidx: 2,
+          }
       })
     ).toBe(true)
   })
 
-  it('should only increment vid outside of session timeout (local storage)', () => {
+  it('should count sessions using anonymousSessionTracking', () => {
+    expect(
+      logContains({
+        event: {
+            event: 'page_view',
+            name_tracker: 'anonymousSessionTracker',
+            domain_sessionidx: 2,
+          }
+      })
+    ).toBe(true)
+  })
+
+  it('should only increment domain_sessionidx outside of session timeout (local storage)', () => {
     const withSingleVid = ev =>
-      F.get('event.parameters.tna', ev) === 'localStorageSessionTracker' &&
-      F.get('event.parameters.vid', ev) === '1'
+      F.get('event.name_tracker', ev) === 'localStorageSessionTracker' &&
+      F.get('event.domain_sessionidx', ev) === 1
 
     expect(F.size(F.filter(withSingleVid, log))).toBe(2)
   })
 
-  it('should only increment vid outside of session timeout (cookie storage)', () => {
+  it('should only increment domain_sessionidx outside of session timeout (anonymous session tracking)', () => {
     const withSingleVid = ev =>
-      F.get('event.parameters.tna', ev) === 'cookieSessionTracker' &&
-      F.get('event.parameters.vid', ev) === '1'
+      F.get('event.name_tracker', ev) === 'anonymousSessionTracker' &&
+      F.get('event.domain_sessionidx', ev) === 1
+
+    expect(F.size(F.filter(withSingleVid, log))).toBe(2)
+  })
+
+  it('should only increment domain_sessionidx outside of session timeout (cookie storage)', () => {
+    const withSingleVid = ev => 
+      F.get('event.name_tracker', ev) === 'cookieSessionTracker' &&
+      F.get('event.domain_sessionidx', ev) === 1
 
     expect(F.size(F.filter(withSingleVid, log))).toBe(2)
   })

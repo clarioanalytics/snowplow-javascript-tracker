@@ -2,7 +2,7 @@
  * JavaScript tracker for Snowplow: tag.js
  * 
  * Significant portions copyright 2010 Anthon Pang. Remainder copyright 
- * 2012-2014 Snowplow Analytics Ltd. All rights reserved. 
+ * 2012-2020 Snowplow Analytics Ltd. All rights reserved. 
  * 
  * Redistribution and use in source and binary forms, with or without 
  * modification, are permitted provided that the following conditions are 
@@ -78,4 +78,4 @@
 		// Insert the Snowplow script before every other script so it executes as soon as possible
 		g.parentNode.insertBefore(n,g);
 	}
-} (window, document, 'script', '//d1fc8wv8zag5ca.cloudfront.net/2/sp.js', 'new_name_here'));
+} (window, document, 'script', '//{{url}}/sp.js', 'new_name_here'));
