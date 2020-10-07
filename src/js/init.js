@@ -39,7 +39,7 @@
  */
 
 // Inject Clario stuff first
-require('./clario');
+import './clario';
 
 import { Snowplow } from './snowplow';
 

@@ -110,7 +110,7 @@ export function InQueueManager(TrackerConstructor, version, mutSnowplowState, as
       trackerDictionary[namespace] = new TrackerConstructor(functionName, namespace, version, mutSnowplowState, argmap);
       trackerDictionary[namespace].setCollectorUrl(endpoint);
     } else {
-      warn('Tracker namespace ' + namespace + ' already exists.');
+      //warn('Tracker namespace ' + namespace + ' already exists.');
     }
   }
 
