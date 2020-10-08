@@ -1,5 +1,5 @@
 /*
- * JavaScript tracker for Snowplow: init.js
+ * JavaScript tracker for Snowplow: init-plowio.js
  *
  * Significant portions copyright 2010 Anthon Pang. Remainder copyright
  * 2012-2020 Snowplow Analytics Ltd. All rights reserved.
