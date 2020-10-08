@@ -38,9 +38,6 @@
  * Get the name of the global input function
  */
 
-// Inject Clario stuff first
-import './clario';
-
 import { Snowplow } from './snowplow';
 
 var queueName,
