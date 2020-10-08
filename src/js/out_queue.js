@@ -1,395 +1,421 @@
 /*
  * JavaScript tracker for Snowplow: out_queue.js
- * 
- * Significant portions copyright 2010 Anthon Pang. Remainder copyright 
- * 2012-2014 Snowplow Analytics Ltd. All rights reserved. 
- * 
- * Redistribution and use in source and binary forms, with or without 
- * modification, are permitted provided that the following conditions are 
- * met: 
  *
- * * Redistributions of source code must retain the above copyright 
- *   notice, this list of conditions and the following disclaimer. 
+ * Significant portions copyright 2010 Anthon Pang. Remainder copyright
+ * 2012-2020 Snowplow Analytics Ltd. All rights reserved.
  *
- * * Redistributions in binary form must reproduce the above copyright 
- *   notice, this list of conditions and the following disclaimer in the 
- *   documentation and/or other materials provided with the distribution. 
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ *
+ * * Redistributions of source code must retain the above copyright
+ *   notice, this list of conditions and the following disclaimer.
+ *
+ * * Redistributions in binary form must reproduce the above copyright
+ *   notice, this list of conditions and the following disclaimer in the
+ *   documentation and/or other materials provided with the distribution.
  *
  * * Neither the name of Anthon Pang nor Snowplow Analytics Ltd nor the
  *   names of their contributors may be used to endorse or promote products
- *   derived from this software without specific prior written permission. 
+ *   derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR 
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, 
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY 
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-;(function() {
+import mapValues from 'lodash/mapValues';
+import isString from 'lodash/isString';
+import map from 'lodash/map';
+import { localStorageAccessible } from './lib/detectors';
+import { warn, attemptWriteLocalStorage, attemptWriteSessionStorage, attemptGetSessionStorage } from './lib/helpers';
 
-	var
-		mapValues = require('lodash/mapValues'),
-		isString = require('lodash/isString'),
-		map = require('lodash/map'),
-		localStorageAccessible = require('./lib/detectors').localStorageAccessible,
-		helpers = require('./lib/helpers'),
-		object = typeof exports !== 'undefined' ? exports : this; // For eventual node.js environment support
+/**
+ * Object handling sending events to a collector.
+ * Instantiated once per tracker instance.
+ *
+ * @param string functionName The Snowplow function name (used to generate the localStorage key)
+ * @param string namespace The tracker instance's namespace (used to generate the localStorage key)
+ * @param object mutSnowplowState Gives the pageUnloadGuard a reference to the outbound queue
+ *                                so it can unload the page when all queues are empty
+ * @param boolean useLocalStorage Whether to use localStorage at all
+ * @param string eventMethod if null will use 'beacon' otherwise can be set to 'post', 'get', or 'beacon' to force.
+ * @param string postPath The path where events are to be posted
+ * @param int bufferSize How many events to batch in localStorage before sending them all.
+ *                       Only applies when sending POST requests and when localStorage is available.
+ * @param int maxPostBytes Maximum combined size in bytes of the event JSONs in a POST request
+ * @param boolean useStm Whether to add timestamp to events
+ * @param int maxLocalStorageQueueSize Maximum number of queued events we will attempt to store in local storage.
+ *
+ * @return object OutQueueManager instance
+ */
+export function OutQueueManager(
+  functionName,
+  namespace,
+  mutSnowplowState,
+  useLocalStorage,
+  eventMethod,
+  postPath,
+  bufferSize,
+  maxPostBytes,
+  useStm,
+  maxLocalStorageQueueSize,
+  connectionTimeout
+) {
+  var localStorageAlias = window.localStorage,
+    queueName,
+    executingQueue = false,
+    configCollectorUrl,
+    outQueue,
+    preflightName,
+    beaconPreflight;
 
-	/**
-	 * Object handling sending events to a collector.
-	 * Instantiated once per tracker instance.
-	 *
-	 * @param string functionName The Snowplow function name (used to generate the localStorage key)
-	 * @param string namespace The tracker instance's namespace (used to generate the localStorage key)
-	 * @param object mutSnowplowState Gives the pageUnloadGuard a reference to the outbound queue
-	 *                                so it can unload the page when all queues are empty
-	 * @param boolean useLocalStorage Whether to use localStorage at all
-	 * @param string eventMethod if null will use 'beacon' otherwise can be set to 'post', 'get', or 'beacon' to force.
-	 * @param string postPath The path where events are to be posted
-	 * @param int bufferSize How many events to batch in localStorage before sending them all.
-	 *                       Only applies when sending POST requests and when localStorage is available.
-	 * @param int maxPostBytes Maximum combined size in bytes of the event JSONs in a POST request
-	 * @param boolean useStm Whether to add timestamp to events
-	 * @param int maxLocalStorageQueueSize Maximum number of queued events we will attempt to store in local storage.
-	 *
-	 * @return object OutQueueManager instance
-	 */
-	object.OutQueueManager = function (functionName, namespace, mutSnowplowState, useLocalStorage, eventMethod, postPath, bufferSize, maxPostBytes, useStm, maxLocalStorageQueueSize) {
-		var	queueName,
-			executingQueue = false,
-			configCollectorUrl,
-			outQueue;
-		
-		//Force to lower case if its a string
-		eventMethod = eventMethod.toLowerCase ? eventMethod.toLowerCase() : eventMethod;
-		
-		// Use the Beacon API if eventMethod is set null, true, or 'beacon'.
-		var isBeaconRequested = (eventMethod === null) || (eventMethod === true) || (eventMethod === "beacon") || (eventMethod === "true");
-		// Fall back to POST or GET for browsers which don't support Beacon API
-		var isBeaconAvailable = Boolean(isBeaconRequested && navigator && navigator.sendBeacon);
-		var useBeacon = (isBeaconAvailable && isBeaconRequested);
+  //Force to lower case if its a string
+  eventMethod = eventMethod.toLowerCase ? eventMethod.toLowerCase() : eventMethod;
 
-		// Use GET if specified
-		var isGetRequested = (eventMethod === "get");
+  // Use the Beacon API if eventMethod is set null, true, or 'beacon'.
+  var isBeaconRequested =
+    eventMethod === null || eventMethod === true || eventMethod === 'beacon' || eventMethod === 'true';
+  // Fall back to POST or GET for browsers which don't support Beacon API
+  var isBeaconAvailable = Boolean(isBeaconRequested && navigator && navigator.sendBeacon);
+  var useBeacon = isBeaconAvailable && isBeaconRequested;
 
-		// Use POST if specified
-		var isPostRequested = (eventMethod === "post");
-		// usePost acts like a catch all for POST methods - Beacon or XHR
-		var usePost = (isPostRequested || useBeacon) && !isGetRequested;
-		// Don't use POST for browsers which don't support CORS XMLHttpRequests (e.g. IE <= 9)
-		usePost = usePost && Boolean(window.XMLHttpRequest && ('withCredentials' in new XMLHttpRequest()));
+  // Use GET if specified
+  var isGetRequested = eventMethod === 'get';
 
-		// Resolve all options and capabilities and decide path
-		var path = usePost ? postPath : '/i';
+  // Use POST if specified
+  var isPostRequested = eventMethod === 'post';
+  // usePost acts like a catch all for POST methods - Beacon or XHR
+  var usePost = (isPostRequested || useBeacon) && !isGetRequested;
+  // Don't use POST for browsers which don't support CORS XMLHttpRequests (e.g. IE <= 9)
+  usePost = usePost && Boolean(window.XMLHttpRequest && 'withCredentials' in new XMLHttpRequest());
 
-		bufferSize = (localStorageAccessible() && useLocalStorage && usePost && bufferSize) || 1;
+  // Resolve all options and capabilities and decide path
+  var path = usePost ? postPath : '/i';
 
-		// Different queue names for GET and POST since they are stored differently
-		queueName = ['snowplowOutQueue', functionName, namespace, usePost ? 'post2' : 'get'].join('_');
+  bufferSize = (localStorageAccessible() && useLocalStorage && usePost && bufferSize) || 1;
 
-		if (useLocalStorage) {
-			// Catch any JSON parse errors or localStorage that might be thrown
-			try {
-				// TODO: backward compatibility with the old version of the queue for POST requests
-				outQueue = JSON.parse(localStorage.getItem(queueName));
-			}
-			catch(e) {}
-		}
+  // Different queue names for GET and POST since they are stored differently
+  queueName = `snowplowOutQueue_${functionName}_${namespace}_${usePost ? 'post2' : 'get'}`;
+  // Storage name for checking if preflight POST has been sent for Beacon API
+  preflightName = `spBeaconPreflight_${functionName}_${namespace}`;
 
-		// Initialize to and empty array if we didn't get anything out of localStorage
-		if (!Array.isArray(outQueue)) {
-			outQueue = [];
-		}
+  if (useLocalStorage) {
+    // Catch any JSON parse errors or localStorage that might be thrown
+    try {
+      // TODO: backward compatibility with the old version of the queue for POST requests
+      outQueue = JSON.parse(localStorageAlias.getItem(queueName));
+    } catch (e) {}
+  }
 
-		// Used by pageUnloadGuard
-		mutSnowplowState.outQueues.push(outQueue);
+  // Initialize to and empty array if we didn't get anything out of localStorage
+  if (!Array.isArray(outQueue)) {
+    outQueue = [];
+  }
 
-		if (usePost && bufferSize > 1) {
-			mutSnowplowState.bufferFlushers.push(function () {
-				if (!executingQueue) {
-					executeQueue();
-				}
-			});
-		}
+  // Used by pageUnloadGuard
+  mutSnowplowState.outQueues.push(outQueue);
 
-		/*
-		 * Convert a dictionary to a querystring
-		 * The context field is the last in the querystring
-		 */
-		function getQuerystring(request) {
-			var querystring = '?',
-				lowPriorityKeys = {'co': true, 'cx': true},
-				firstPair = true;
+  if (usePost && bufferSize > 1) {
+    mutSnowplowState.bufferFlushers.push(function () {
+      if (!executingQueue) {
+        executeQueue();
+      }
+    });
+  }
 
-			for (var key in request) {
-				if (request.hasOwnProperty(key) && !(lowPriorityKeys.hasOwnProperty(key))) {
-					if (!firstPair) {
-						querystring += '&';
-					} else {
-						firstPair = false;
-					}
-					querystring += encodeURIComponent(key) + '=' + encodeURIComponent(request[key]);
-				}
-			}
+  /*
+   * Convert a dictionary to a querystring
+   * The context field is the last in the querystring
+   */
+  function getQuerystring(request) {
+    var querystring = '?',
+      lowPriorityKeys = { co: true, cx: true },
+      firstPair = true;
 
-			for (var contextKey in lowPriorityKeys) {
-				if (request.hasOwnProperty(contextKey)  && lowPriorityKeys.hasOwnProperty(contextKey)) {
-					querystring += '&' + contextKey + '=' + encodeURIComponent(request[contextKey]);
-				}
-			}
+    for (var key in request) {
+      if (request.hasOwnProperty(key) && !lowPriorityKeys.hasOwnProperty(key)) {
+        if (!firstPair) {
+          querystring += '&';
+        } else {
+          firstPair = false;
+        }
+        querystring += encodeURIComponent(key) + '=' + encodeURIComponent(request[key]);
+      }
+    }
 
-			return querystring;
-		}
+    for (var contextKey in lowPriorityKeys) {
+      if (request.hasOwnProperty(contextKey) && lowPriorityKeys.hasOwnProperty(contextKey)) {
+        querystring += '&' + contextKey + '=' + encodeURIComponent(request[contextKey]);
+      }
+    }
 
-		/*
-		 * Convert numeric fields to strings to match payload_data schema
-		 */
-		function getBody(request) {
-			var cleanedRequest = mapValues(request, function (v) {
-				return v.toString();
-			});
-			return {
-				evt: cleanedRequest,
-				bytes: getUTF8Length(JSON.stringify(cleanedRequest))
-			};
-		}
+    return querystring;
+  }
 
-		/**
-		 * Count the number of bytes a string will occupy when UTF-8 encoded
-		 * Taken from http://stackoverflow.com/questions/2848462/count-bytes-in-textarea-using-javascript/
-		 *
-		 * @param string s
-		 * @return number Length of s in bytes when UTF-8 encoded
-		 */
-		function getUTF8Length(s) {
-			var len = 0;
-			for (var i = 0; i < s.length; i++) {
-				var code = s.charCodeAt(i);
-				if (code <= 0x7f) {
-					len += 1;
-				} else if (code <= 0x7ff) {
-					len += 2;
-				} else if (code >= 0xd800 && code <= 0xdfff) {
-					// Surrogate pair: These take 4 bytes in UTF-8 and 2 chars in UCS-2
-					// (Assume next char is the other [valid] half and just skip it)
-					len += 4; i++;
-				} else if (code < 0xffff) {
-					len += 3;
-				} else {
-					len += 4;
-				}
-			}
-			return len;
-		}
+  /*
+   * Convert numeric fields to strings to match payload_data schema
+   */
+  function getBody(request) {
+    var cleanedRequest = mapValues(request, function (v) {
+      return v.toString();
+    });
+    return {
+      evt: cleanedRequest,
+      bytes: getUTF8Length(JSON.stringify(cleanedRequest)),
+    };
+  }
 
-		/*
-		 * Queue an image beacon for submission to the collector.
-		 * If we're not processing the queue, we'll start.
-		 */
-		function enqueueRequest (request, url) {
+  /**
+   * Count the number of bytes a string will occupy when UTF-8 encoded
+   * Taken from http://stackoverflow.com/questions/2848462/count-bytes-in-textarea-using-javascript/
+   *
+   * @param string s
+   * @return number Length of s in bytes when UTF-8 encoded
+   */
+  function getUTF8Length(s) {
+    var len = 0;
+    for (var i = 0; i < s.length; i++) {
+      var code = s.charCodeAt(i);
+      if (code <= 0x7f) {
+        len += 1;
+      } else if (code <= 0x7ff) {
+        len += 2;
+      } else if (code >= 0xd800 && code <= 0xdfff) {
+        // Surrogate pair: These take 4 bytes in UTF-8 and 2 chars in UCS-2
+        // (Assume next char is the other [valid] half and just skip it)
+        len += 4;
+        i++;
+      } else if (code < 0xffff) {
+        len += 3;
+      } else {
+        len += 4;
+      }
+    }
+    return len;
+  }
 
-			configCollectorUrl = url + path;
-			if (usePost) {
-				var body = getBody(request);
-				if (body.bytes >= maxPostBytes) {
-					helpers.warn("Event of size " + body.bytes + " is too long - the maximum size is " + maxPostBytes);
-					var xhr = initializeXMLHttpRequest(configCollectorUrl);
-					xhr.send(encloseInPayloadDataEnvelope(attachStmToEvent([body.evt])));
-					return;
-				} else {
-					outQueue.push(body);
-				}
-			} else {
-				outQueue.push(getQuerystring(request));
-			}
-			var savedToLocalStorage = false;
-			if (useLocalStorage) {
-				savedToLocalStorage = helpers.attemptWriteLocalStorage(queueName, JSON.stringify(outQueue.slice(0, maxLocalStorageQueueSize)));
-			}
+  /*
+   * Queue an image beacon for submission to the collector.
+   * If we're not processing the queue, we'll start.
+   */
+  function enqueueRequest(request, url) {
+    configCollectorUrl = url + path;
+    if (usePost) {
+      var body = getBody(request);
+      if (body.bytes >= maxPostBytes) {
+        warn('Event of size ' + body.bytes + ' is too long - the maximum size is ' + maxPostBytes);
+        var xhr = initializeXMLHttpRequest(configCollectorUrl);
+        xhr.send(encloseInPayloadDataEnvelope(attachStmToEvent([body.evt])));
+        return;
+      } else {
+        outQueue.push(body);
+      }
+    } else {
+      outQueue.push(getQuerystring(request));
+    }
+    var savedToLocalStorage = false;
+    if (useLocalStorage) {
+      savedToLocalStorage = attemptWriteLocalStorage(
+        queueName,
+        JSON.stringify(outQueue.slice(0, maxLocalStorageQueueSize))
+      );
+    }
 
-			if (!executingQueue && (!savedToLocalStorage || outQueue.length >= bufferSize)) {
-				executeQueue();
-			}
-		}
+    if (!executingQueue && (!savedToLocalStorage || outQueue.length >= bufferSize)) {
+      executeQueue();
+    }
+  }
 
-		/*
-		 * Run through the queue of image beacons, sending them one at a time.
-		 * Stops processing when we run out of queued requests, or we get an error.
-		 */
-		function executeQueue () {
+  /*
+   * Run through the queue of image beacons, sending them one at a time.
+   * Stops processing when we run out of queued requests, or we get an error.
+   */
+  function executeQueue() {
+    // Failsafe in case there is some way for a bad value like "null" to end up in the outQueue
+    while (outQueue.length && typeof outQueue[0] !== 'string' && typeof outQueue[0] !== 'object') {
+      outQueue.shift();
+    }
 
-			// Failsafe in case there is some way for a bad value like "null" to end up in the outQueue
-			while (outQueue.length && typeof outQueue[0] !== 'string' && typeof outQueue[0] !== 'object') {
-				outQueue.shift();
-			}
+    if (outQueue.length < 1) {
+      executingQueue = false;
+      return;
+    }
 
-			if (outQueue.length < 1) {
-				executingQueue = false;
-				return;
-			}
+    // Let's check that we have a Url to ping
+    if (!isString(configCollectorUrl)) {
+      throw 'No Snowplow collector configured, cannot track';
+    }
 
-			// Let's check that we have a Url to ping
-			if (!isString(configCollectorUrl)) {
-				throw "No Snowplow collector configured, cannot track";
-			}
+    executingQueue = true;
 
-			executingQueue = true;
+    var nextRequest = outQueue[0];
 
-			var nextRequest = outQueue[0];
+    if (usePost) {
+      var xhr = initializeXMLHttpRequest(configCollectorUrl);
 
-			if (usePost) {
+      // Time out POST requests after 5 seconds
+      var xhrTimeout = setTimeout(function () {
+        xhr.abort();
+        executingQueue = false;
+      }, connectionTimeout);
 
-				var xhr = initializeXMLHttpRequest(configCollectorUrl);
+      function chooseHowManyToExecute(q) {
+        var numberToSend = 0;
+        var byteCount = 0;
+        while (numberToSend < q.length) {
+          byteCount += q[numberToSend].bytes;
+          if (byteCount >= maxPostBytes) {
+            break;
+          } else {
+            numberToSend += 1;
+          }
+        }
+        return numberToSend;
+      }
 
-				// Time out POST requests after 5 seconds
-				var xhrTimeout = setTimeout(function () {
-					xhr.abort();
-					executingQueue = false;
-				}, 5000);
+      // Keep track of number of events to delete from queue
+      var numberToSend = chooseHowManyToExecute(outQueue);
 
-				function chooseHowManyToExecute(q) {
-					var numberToSend = 0;
-					var byteCount = 0;
-					while (numberToSend < q.length) {
-						byteCount += q[numberToSend].bytes;
-						if (byteCount >= maxPostBytes) {
-							break;
-						} else {
-							numberToSend += 1;
-						}
-					}
-					return numberToSend;
-				}
+      // The events (`numberToSend` of them), have been sent, so we remove them from the outQueue
+      // We also call executeQueue() again, to let executeQueue() check if we should keep running through the queue
+      function onPostSuccess(numberToSend) {
+        for (var deleteCount = 0; deleteCount < numberToSend; deleteCount++) {
+          outQueue.shift();
+        }
+        if (useLocalStorage) {
+          attemptWriteLocalStorage(queueName, JSON.stringify(outQueue.slice(0, maxLocalStorageQueueSize)));
+        }
+        executeQueue();
+      }
 
-				// Keep track of number of events to delete from queue
-				var numberToSend = chooseHowManyToExecute(outQueue);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4 && xhr.status >= 200 && xhr.status < 400) {
+          clearTimeout(xhrTimeout);
+          if (useBeacon && !beaconPreflight) {
+            attemptWriteSessionStorage(preflightName, true);
+          }
+          onPostSuccess(numberToSend);
+        } else if (xhr.readyState === 4 && xhr.status >= 400) {
+          clearTimeout(xhrTimeout);
+          executingQueue = false;
+        }
+      };
 
-				// The events (`numberToSend` of them), have been sent, so we remove them from the outQueue
-				// We also call executeQueue() again, to let executeQueue() check if we should keep running through the queue
-				function onPostSuccess(numberToSend) {
-					for (var deleteCount = 0; deleteCount < numberToSend; deleteCount++) {
-						outQueue.shift();
-					}
-					if (useLocalStorage) {
-						helpers.attemptWriteLocalStorage(queueName, JSON.stringify(outQueue.slice(0, maxLocalStorageQueueSize)));
-					}
-					executeQueue();
-				}
+      var batch = map(outQueue.slice(0, numberToSend), function (x) {
+        return x.evt;
+      });
 
-				xhr.onreadystatechange = function () {
-					if (xhr.readyState === 4 && xhr.status >= 200 && xhr.status < 400) {
-						clearTimeout(xhrTimeout);
-						onPostSuccess(numberToSend);
-					} else if (xhr.readyState === 4 && xhr.status >= 400) {
-						clearTimeout(xhrTimeout);
-						executingQueue = false;
-					}
-				};
+      if (batch.length > 0) {
+        var beaconStatus;
 
-				var batch = map(outQueue.slice(0, numberToSend), function (x) {
-					return x.evt;
-				});
+        //If using Beacon, check we have sent at least one request using POST as Safari doesn't preflight Beacon
+        beaconPreflight = beaconPreflight || (useBeacon && attemptGetSessionStorage(preflightName));
 
-				if (batch.length > 0) {
-					var beaconStatus;
+        if (beaconPreflight) {
+          const headers = { type: 'application/json' };
+          const blob = new Blob([encloseInPayloadDataEnvelope(attachStmToEvent(batch))], headers);
+          try {
+            beaconStatus = navigator.sendBeacon(configCollectorUrl, blob);
+          } catch (error) {
+            beaconStatus = false;
+          }
+        }
+        // When beaconStatus is true, we can't _guarantee_ that it was successful (beacon queues asynchronously)
+        // but the browser has taken it out of our hands, so we want to flush the queue assuming it will do its job
+        if (beaconStatus === true) {
+          onPostSuccess(numberToSend);
+        }
 
-					if (useBeacon) {
-						const headers = { type: 'application/json' };
-						const blob = new Blob([encloseInPayloadDataEnvelope(attachStmToEvent(batch))], headers);
-						try {
-							beaconStatus = navigator.sendBeacon(configCollectorUrl, blob);
-						}
-						catch(error) {
-							beaconStatus = false;
-						}
+        if (!useBeacon || !beaconStatus) {
+          xhr.send(encloseInPayloadDataEnvelope(attachStmToEvent(batch)));
+        }
+      }
+    } else {
+      var image = new Image(1, 1);
+      var loading = true;
 
-					}
-					// When beaconStatus is true, we can't _guarantee_ that it was successful (beacon queues asynchronously)
-					// but the browser has taken it out of our hands, so we want to flush the queue assuming it will do its job
-					if (beaconStatus === true) {
-						onPostSuccess(numberToSend);
-					}
+      image.onload = function () {
+        if (!loading) return;
+        loading = false;
+        outQueue.shift();
+        if (useLocalStorage) {
+          attemptWriteLocalStorage(queueName, JSON.stringify(outQueue.slice(0, maxLocalStorageQueueSize)));
+        }
+        executeQueue();
+      };
 
-					if (!useBeacon || !beaconStatus) {
-						xhr.send(encloseInPayloadDataEnvelope(attachStmToEvent(batch)));
-					}
-				}
+      image.onerror = function () {
+        if (!loading) return;
+        loading = false;
+        executingQueue = false;
+      };
 
-			} else {
-				var image = new Image(1, 1);
+      // note: this currently on applies to GET requests
+      if (useStm) {
+        image.src = configCollectorUrl + nextRequest.replace('?', '?stm=' + new Date().getTime() + '&');
+      } else {
+        image.src = configCollectorUrl + nextRequest;
+      }
+      setTimeout(function () {
+        if (loading && executingQueue) {
+          loading = false;
+          executeQueue();
+        }
+      }, connectionTimeout);
+    }
+  }
 
-				image.onload = function () {
-					outQueue.shift();
-					if (useLocalStorage) {
-						helpers.attemptWriteLocalStorage(queueName, JSON.stringify(outQueue.slice(0, maxLocalStorageQueueSize)));
-					}
-					executeQueue();
-				};
+  /**
+   * Open an XMLHttpRequest for a given endpoint with the correct credentials and header
+   *
+   * @param string url The destination URL
+   * @return object The XMLHttpRequest
+   */
+  function initializeXMLHttpRequest(url) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
+    return xhr;
+  }
 
-				image.onerror = function () {
-					executingQueue = false;
-				};
+  /**
+   * Enclose an array of events in a self-describing payload_data JSON string
+   *
+   * @param array events Batch of events
+   * @return string payload_data self-describing JSON
+   */
+  function encloseInPayloadDataEnvelope(events) {
+    return JSON.stringify({
+      schema: 'iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4',
+      data: events,
+    });
+  }
 
-				// note: this currently on applies to GET requests
-				if (useStm) {
-					image.src = configCollectorUrl + nextRequest.replace('?', '?stm=' + new Date().getTime() + '&');
-				} else {
-					image.src = configCollectorUrl + nextRequest;
-				}
-			}
-		}
+  /**
+   * Attaches the STM field to outbound POST events.
+   *
+   * @param events the events to attach the STM to
+   */
+  function attachStmToEvent(events) {
+    var stm = new Date().getTime().toString();
+    for (var i = 0; i < events.length; i++) {
+      events[i]['stm'] = stm;
+    }
+    return events;
+  }
 
-		/**
-		 * Open an XMLHttpRequest for a given endpoint with the correct credentials and header
-		 *
-		 * @param string url The destination URL
-		 * @return object The XMLHttpRequest
-		 */
-		function initializeXMLHttpRequest(url) {
-			var xhr = new XMLHttpRequest();
-			xhr.open('POST', url, true);
-			xhr.withCredentials = true;
-			xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
-			return xhr;
-		}
-
-		/**
-		 * Enclose an array of events in a self-describing payload_data JSON string
-		 *
-		 * @param array events Batch of events
-		 * @return string payload_data self-describing JSON
-		 */
-		function encloseInPayloadDataEnvelope(events) {
-			return JSON.stringify({
-				schema: 'iglu:com.snowplowanalytics.snowplow/payload_data/jsonschema/1-0-4',
-				data: events
-			});
-		}
-
-		/**
-		 * Attaches the STM field to outbound POST events.
-		 *
-		 * @param events the events to attach the STM to
-		 */
-		function attachStmToEvent(events) {
-			var stm = new Date().getTime().toString();
-			for (var i = 0; i < events.length; i++) {
-				events[i]['stm'] = stm;
-			}
-			return events
-		}
-
-		return {
-			enqueueRequest: enqueueRequest,
-			executeQueue: executeQueue
-		};
-	};
-
-}());
+  return {
+    enqueueRequest: enqueueRequest,
+    executeQueue: executeQueue,
+  };
+}

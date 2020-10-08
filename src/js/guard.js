@@ -2,7 +2,7 @@
  * JavaScript tracker for Snowplow: tracker.js
  *
  * Significant portions copyright 2010 Anthon Pang. Remainder copyright
- * 2012-2018 Snowplow Analytics Ltd. All rights reserved.
+ * 2012-2020 Snowplow Analytics Ltd. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -32,10 +32,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
-var object = typeof exports !== 'undefined' ? exports : this;
-
-var makeSafe = function (fn) {
+const makeSafe = function (fn) {
   return function () {
     try {
       return fn.apply(this, arguments);
@@ -45,16 +42,14 @@ var makeSafe = function (fn) {
   };
 };
 
-exports.productionize = function (methods) {
+export function productionize(methods) {
   let safeMethods = {};
   if (typeof methods === 'object' && methods !== null) {
-    Object.getOwnPropertyNames(methods).forEach(
-      function (val, idx, array) {
-        if (typeof methods[val] === 'function') {
-          safeMethods[val] = makeSafe(methods[val]);
-        }
+    Object.getOwnPropertyNames(methods).forEach(function (val, idx, array) {
+      if (typeof methods[val] === 'function') {
+        safeMethods[val] = makeSafe(methods[val]);
       }
-    );
+    });
   }
   return safeMethods;
-};
+}

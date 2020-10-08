@@ -1,11 +1,10 @@
 # JavaScript web analytics for Snowplow
 
-[![Build Status][travis-image]][travis]
-[![Selenium Test Status][saucelabs-button-image]][saucelabs]
-[![Code Climate][codeclimate-image]][codeclimate]
-[![Built with Grunt][grunt-image]][grunt]
+[![actively-maintained]][tracker-classificiation]
+[![Release][release-image]][releases]
+[![Build Status][gh-actions-image]][gh-actions]
+[![Saucelabs Test Status][saucelabs-button-image]][saucelabs]
 [![License][license-image]][bsd]
-[![jsDelivr Hits](https://data.jsdelivr.com/v1/package/gh/snowplow/snowplow-javascript-tracker/badge?style=rounded)](https://www.jsdelivr.com/package/gh/snowplow/snowplow-javascript-tracker)
 
 ## Overview
 
@@ -17,32 +16,42 @@ client-side tier of your websites and web apps.
 
 ## Find out more
 
-| Technical Docs                      | Setup Guide                  | Roadmap & Contributing               |         
+| Technical Docs                      | Setup Guide                  | Contributing                         |
 |-------------------------------------|------------------------------|--------------------------------------|
-| [![i1][techdocs-image]][tech-docs] | [ ![i2][setup-image]][setup] | ![i3][roadmap-image]                 |
-| [Technical Docs][tech-docs]         | [Setup Guide][setup]         | _coming soon_                        |
-
+| [![i1][techdocs-image]][tech-docs]  | [![i2][setup-image]][setup]  | ![i3][contributing-image]            |
+| [Technical Docs][tech-docs]         | [Setup Guide][setup]         | [Contributing](Contributing.md)      |
 
 ## Developers
 
-### Contributing quickstart
+### Contributing quick start
 
-Assuming git, [Vagrant][vagrant-install] and [VirtualBox][virtualbox-install] installed:
+Assuming git and [Docker][docker-install] installed:
 
-```
- host$ git clone https://github.com/snowplow/snowplow-javascript-tracker.git
- host$ cd snowplow-javascript-tracker
- host$ vagrant up && vagrant ssh
-guest$ cd /vagrant
-guest$ sudo npm install
-guest$ cd core
-guest$ sudo npm install
+#### Clone repository
+
+```bash
+host$ git clone https://github.com/snowplow/snowplow-javascript-tracker.git
 ```
 
-Set up an `./aws.json` file using the example `./aws.sample.json`. If you just want to concat +
-minify without uploading then you don't need to fill out the `aws.json` file with valid credentials.
+#### Building Tracker Core
 
-Build the package (default task concatenates and minifies) using `grunt`.
+```bash
+host$ cd snowplow-javascript-tracker/core
+host$ docker build -t core .
+host$ docker run -v "$(pwd)":"/code" core npm run build
+```
+
+From the `/core` folder, build the core library using `npm run build` and run unit tests with `npm run test`.
+
+#### Building Tracker
+
+```bash
+host$ cd snowplow-javascript-tracker
+host$ docker build -t tracker .
+host$ docker run -v "$(pwd)":"/code" tracker npm run build
+```
+
+Build the tracker using `npm run build` and run unit tests with `npm run test:unit`.
 
 ## Testing
 
@@ -55,34 +64,27 @@ tracker for the open-source [Piwik][piwik] project, and is distributed under the
 ([Simplified BSD][bsd]).
 
 Significant portions of the Snowplow JavaScript Tracker copyright 2010 Anthon Pang. Remainder
-copyright 2012-14 Snowplow Analytics Ltd.
+copyright 2012-2020 Snowplow Analytics Ltd.
 
 Licensed under the [Simplified BSD][bsd] license.
 
 [snowplow]: http://snowplowanalytics.com/
-
-[vagrant-install]: http://docs.vagrantup.com/v2/installation/index.html
-[virtualbox-install]: https://www.virtualbox.org/wiki/Downloads
-
+[docker-install]: https://docs.docker.com/install/
 [piwik]: http://piwik.org/
 [piwikjs]: https://github.com/piwik/piwik/blob/master/js/piwik.js
-[piwikphp]: https://github.com/piwik/piwik/blob/master/piwik.php
-[bsd]: http://www.opensource.org/licenses/bsd-license.php 
-[integrating]: /snowplow/snowplow/blob/master/docs/03_integrating_snowplowjs.md
-[selfhosting]: /snowplow/snowplow/blob/master/docs/04_selfhosting_snowplow.md
-[setup]: https://github.com/snowplow/snowplow/wiki/javascript-tracker-setup
-[integrating-js-on-website]: https://github.com/snowplow/snowplow/wiki/integrating-javascript-tags-onto-your-website
-[tech-docs]: https://github.com/snowplow/snowplow/wiki/javascript-tracker
+[bsd]: http://www.opensource.org/licenses/bsd-license.php
+[setup]: https://docs.snowplowanalytics.com/docs/collecting-data/collecting-from-own-applications/javascript-tracker/general-parameters/
+[tech-docs]: https://docs.snowplowanalytics.com/docs/collecting-data/collecting-from-own-applications/javascript-tracker/
 [techdocs-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/techdocs.png
 [setup-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/setup.png
-[roadmap-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/roadmap.png
-[grunt-image]: https://cdn.gruntjs.com/builtwith.png
-[grunt]: http://gruntjs.com/
-[travis-image]: https://travis-ci.org/snowplow/snowplow-javascript-tracker.png?branch=master
-[travis]: http://travis-ci.org/snowplow/snowplow-javascript-tracker
-[codeclimate-image]: https://codeclimate.com/github/snowplow/snowplow-javascript-tracker.png
-[codeclimate]: https://codeclimate.com/github/snowplow/snowplow-javascript-tracker      
+[contributing-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/contributing.png
+[release-image]: https://img.shields.io/badge/release-2.16.1-blue.svg?style=flat
+[releases]: https://github.com/snowplow/snowplow-javascript-tracker/releases
+[gh-actions]: https://github.com/snowplow/snowplow-javascript-tracker/actions
+[gh-actions-image]: https://github.com/snowplow/snowplow-javascript-tracker/workflows/Build/badge.svg
 [saucelabs]: https://saucelabs.com/u/snowplow
-[saucelabs-button-image]: https://saucelabs.com/buildstatus/snowplow
-[saucelabs-matrix-image]: https://saucelabs.com/browser-matrix/snowplow.svg
+[saucelabs-button-image]: https://app.saucelabs.com/buildstatus/snowplow
+[saucelabs-matrix-image]: https://app.saucelabs.com/browser-matrix/snowplow.svg
 [license-image]: http://img.shields.io/badge/license-simplified--bsd-blue.svg?style=flat
+[tracker-classificiation]: https://docs.snowplowanalytics.com/docs/collecting-data/collecting-from-own-applications/tracker-maintenance-classification/
+[actively-maintained]: https://img.shields.io/static/v1?style=flat&label=Snowplow&message=Actively%20Maintained&color=6638b8&labelColor=9ba0aa&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAAeFBMVEVMaXGXANeYANeXANZbAJmXANeUANSQAM+XANeMAMpaAJhZAJeZANiXANaXANaOAM2WANVnAKWXANZ9ALtmAKVaAJmXANZaAJlXAJZdAJxaAJlZAJdbAJlbAJmQAM+UANKZANhhAJ+EAL+BAL9oAKZnAKVjAKF1ALNBd8J1AAAAKHRSTlMAa1hWXyteBTQJIEwRgUh2JjJon21wcBgNfmc+JlOBQjwezWF2l5dXzkW3/wAAAHpJREFUeNokhQOCA1EAxTL85hi7dXv/E5YPCYBq5DeN4pcqV1XbtW/xTVMIMAZE0cBHEaZhBmIQwCFofeprPUHqjmD/+7peztd62dWQRkvrQayXkn01f/gWp2CrxfjY7rcZ5V7DEMDQgmEozFpZqLUYDsNwOqbnMLwPAJEwCopZxKttAAAAAElFTkSuQmCC
